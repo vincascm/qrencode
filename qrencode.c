@@ -1,0 +1,326 @@
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+#include <lua.h>
+#include <lauxlib.h>
+#include <lualib.h>
+
+#include <qrencode.h>
+#include <png.h>
+
+
+struct mem_data {
+	char *buffer;
+	size_t size;
+};
+
+#define INCHES_PER_METER (100.0/2.54)
+
+static int casesensitive = 1;
+static int eightbit = 0;
+static int version = 0;
+static int size = 3;
+static int margin = 4;
+static int dpi = 72;
+static QRecLevel level = QR_ECLEVEL_L;
+static QRencodeMode hint = QR_MODE_8;
+static unsigned int fg_color[4] = {0, 0, 0, 255};
+static unsigned int bg_color[4] = {255, 255, 255, 255};
+
+/* png io callback function */
+static void cp_png_data(png_structp png_ptr, png_bytep data, png_size_t length)
+{
+	struct mem_data* p = (struct mem_data*)png_get_io_ptr(png_ptr);
+
+	p->buffer = realloc(p->buffer, p->size + length);
+	if (!p->buffer)
+		png_error(png_ptr, "Write Error");
+
+	memcpy(p->buffer + p->size, data, length);
+	p->size += length;
+}
+
+/* 0:failure/1:true to_png( qrcode: qr data , result: buffer to save result.) {{{ */
+static int to_png(QRcode *qrcode, struct mem_data *result)
+{
+	png_structp png_ptr;
+	png_infop info_ptr;
+	png_colorp palette;
+	png_byte alpha_values[2];
+
+	unsigned char *row, *p, *q;
+	int x, y, xx, yy, bit;
+	int realwidth;
+
+	realwidth = (qrcode->width + margin * 2) * size;
+	row = (unsigned char *)malloc((realwidth + 7) / 8);
+	if (row == NULL) {
+		fprintf(stderr, "Failed to allocate memory.\n");
+		return 0;
+	}
+
+	png_ptr = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+	if (png_ptr == NULL) {
+		fprintf(stderr, "Failed to initialize PNG writer.\n");
+		return 0;
+	}
+
+	info_ptr = png_create_info_struct(png_ptr);
+	if (info_ptr == NULL) {
+		fprintf(stderr, "Failed to initialize PNG write.\n");
+		return 0;
+	}
+
+	if (setjmp(png_jmpbuf(png_ptr))) {
+		png_destroy_write_struct(&png_ptr, &info_ptr);
+		fprintf(stderr, "Failed to write PNG image.\n");
+		return 0;
+	}
+
+	png_set_write_fn(png_ptr, result, cp_png_data, NULL);
+
+	palette = (png_colorp) malloc(sizeof(png_color) * 2);
+	if (palette == NULL) {
+		fprintf(stderr, "Failed to allocate memory.\n");
+		return 0;
+	}
+	palette[0].red   = fg_color[0];
+	palette[0].green = fg_color[1];
+	palette[0].blue  = fg_color[2];
+	palette[1].red   = bg_color[0];
+	palette[1].green = bg_color[1];
+	palette[1].blue  = bg_color[2];
+	alpha_values[0] = fg_color[3];
+	alpha_values[1] = bg_color[3];
+	png_set_PLTE(png_ptr, info_ptr, palette, 2);
+	png_set_tRNS(png_ptr, info_ptr, alpha_values, 2, NULL);
+
+	png_set_IHDR(png_ptr, info_ptr,
+			realwidth, realwidth,
+			1,
+			PNG_COLOR_TYPE_PALETTE,
+			PNG_INTERLACE_NONE,
+			PNG_COMPRESSION_TYPE_DEFAULT,
+			PNG_FILTER_TYPE_DEFAULT);
+	png_set_pHYs(png_ptr, info_ptr,
+			dpi * INCHES_PER_METER,
+			dpi * INCHES_PER_METER,
+			PNG_RESOLUTION_METER);
+	png_write_info(png_ptr, info_ptr);
+
+	/* top margin */
+	memset(row, 0xff, (realwidth + 7) / 8);
+	for(y=0; y<margin * size; y++) {
+		png_write_row(png_ptr, row);
+	}
+
+	/* data */
+	p = qrcode->data;
+	for(y=0; y<qrcode->width; y++) {
+		bit = 7;
+		memset(row, 0xff, (realwidth + 7) / 8);
+		q = row;
+		q += margin * size / 8;
+		bit = 7 - (margin * size % 8);
+		for(x=0; x<qrcode->width; x++) {
+			for(xx=0; xx<size; xx++) {
+				*q ^= (*p & 1) << bit;
+				bit--;
+				if (bit < 0) {
+					q++;
+					bit = 7;
+				}
+			}
+			p++;
+		}
+		for(yy=0; yy<size; yy++) {
+			png_write_row(png_ptr, row);
+		}
+	}
+	/* bottom margin */
+	memset(row, 0xff, (realwidth + 7) / 8);
+	for(y=0; y<margin * size; y++) {
+		png_write_row(png_ptr, row);
+	}
+
+	png_write_end(png_ptr, info_ptr);
+	png_destroy_write_struct(&png_ptr, &info_ptr);
+
+	free(row);
+	free(palette);
+
+	return 1;
+}
+/* }}} */
+
+static void set_error_info(lua_State *L, const char *info)
+{
+	lua_pushstring(L, info);
+	lua_pushstring(L, " is not invalid color");
+	lua_concat(L, 2);
+	lua_error(L);
+}
+
+static void set_qr_color(lua_State *L, unsigned int color[4], const char * field)
+{
+    size_t len, count;
+	const char * value;
+
+	lua_pushstring(L, field);
+	lua_gettable(L, 1);
+	if (!lua_isnil(L, 2)) {
+		value = lua_tolstring(L, 2, &len);
+		if(value[0] != '#') {
+			set_error_info(L, field);
+		}
+		value += 1;
+	    if(len == 7) {
+			count = sscanf(value, "%02x%02x%02x%n", &color[0], &color[1], &color[2], (int *)&len);
+			if(count < 3 || len != 6) {
+				set_error_info(L, field);
+			}
+			color[3] = 255;
+		} else if(len == 9) {
+			count = sscanf(value, "%02x%02x%02x%02x%n", &color[0], &color[1], &color[2], &color[3], (int *)&len);
+			if(count < 4 || len != 8) {
+				set_error_info(L, field);
+			}
+		} else {
+			set_error_info(L, field);
+		}
+	}	
+	lua_pop(L, 1);
+}
+
+static void set_qr_boolean (lua_State *L, int *set_to, const char * field)
+{
+	lua_pushstring(L, field);
+	lua_gettable(L, 1);
+	if (!lua_isnil(L, 2)) {
+		if (!lua_isboolean(L, 2)) {
+			lua_pushstring(L, field);
+			lua_pushstring(L, " is not \"true\" or \"false\"");
+			lua_concat(L, 2);
+			lua_error(L);
+			return;
+		}
+		*set_to = lua_toboolean(L, 2);
+	}	
+	lua_pop(L, 1);
+}
+
+static void set_qr_int (lua_State *L, int *set_to, const char * field)
+{
+	lua_pushstring(L, field);
+	lua_gettable(L, 1);
+	if (!lua_isnil(L, 2)) {
+		*set_to = luaL_checkint(L, 2);
+	}	
+	lua_pop(L, 1);
+}
+
+static int encode (lua_State *L)
+{
+	QRcode *qrcode;
+	const char *intext;
+	struct mem_data png_data;
+
+	png_data.buffer = NULL;
+	png_data.size = 0;
+
+	if (lua_istable(L, 1)) {
+
+		lua_pushstring(L, "text");
+		lua_gettable(L, 1);
+		intext = luaL_checkstring(L, -1);
+		lua_pop(L, 1);
+
+		lua_pushstring(L, "level");
+		lua_gettable(L, 1);
+		if (!lua_isnil(L, 2)) {
+			switch(*luaL_checkstring(L, -1)) {
+				case 'l':
+				case 'L':
+					level = QR_ECLEVEL_L;
+					break;
+				case 'm':
+				case 'M':
+					level = QR_ECLEVEL_M;
+					break;
+				case 'q':
+				case 'Q':
+					level = QR_ECLEVEL_Q;
+					break;
+				case 'h':
+				case 'H':
+					level = QR_ECLEVEL_H;
+					break;
+				default:
+					lua_pushstring(L, "Invalid qr level, must be \"L/M/Q/H\"");
+					lua_error(L);
+					break;
+			}
+		}
+		lua_pop(L, 1);
+
+		lua_pushstring(L, "kanji");
+		lua_gettable(L, 1);
+		if (!lua_isnil(L, 2)) {
+			if (!lua_isboolean(L, 2)) {
+				lua_pushstring(L, "kanji is not \"true\" or \"false\"");
+				lua_error(L);
+			}
+			if(lua_toboolean(L, 2))
+				hint = QR_MODE_KANJI;
+		}
+		lua_pop(L, 1);
+
+		set_qr_int(L, &size, "size");
+		set_qr_int(L, &version, "symversion");
+		set_qr_int(L, &margin, "margin");
+		set_qr_int(L, &dpi, "dpi");
+		set_qr_boolean(L,&casesensitive, "casesensitive");
+		set_qr_boolean(L,&eightbit, "eightbit");
+		set_qr_color(L, fg_color, "foreground");
+		set_qr_color(L, bg_color, "background");
+	}
+	else
+		intext = luaL_checkstring(L, 1);
+
+	if (strlen(intext) <= 0) {
+		lua_pushstring(L, "The input data is invalid");
+		lua_error(L);
+	}
+
+	qrcode = QRcode_encodeString(intext, version, level, hint, casesensitive);
+	if (qrcode == NULL) {
+		lua_pushnil(L);
+		lua_pushstring(L, "Failed to encode the input data");
+		return 2;
+	}
+	if (!to_png(qrcode, &png_data)) {
+		lua_pushnil(L);
+		lua_pushstring(L, "Failed to encode the input data to png");
+		return 2;
+	}
+
+	QRcode_free(qrcode);
+	lua_pushlstring(L, png_data.buffer, png_data.size);
+	free(png_data.buffer);
+	return 1;
+}
+
+static const struct luaL_Reg qr [] = {
+	{"encode", encode},
+	{NULL, NULL}
+};
+
+int luaopen_qrencode (lua_State *L)
+{
+	luaL_register(L, "qrencode", qr);
+	return 1;
+}
+
+/* vi: set noet fdm=marker : */
