@@ -15,13 +15,20 @@ qr = require "qrencode"
 
 -- print PNG data stream to stdout.
 
--- print(qr.encode("is ok?"))
+print(qr.encode("is ok?"))
+print(qr:encode("is ok?"))
+print(qr("is ok?"))
+
+-- print ansi char
+print(qr {text = "is ok?", ansi = true})
+
 -- or pass a table :
-print(qr.encode(
-{
+
+print(qr {
     text="is ok?",
     level="L",
     kanji=false,
+    ansi=false,
     size=3,
     symversion=0,
     dpi=80,
@@ -30,7 +37,6 @@ print(qr.encode(
     foreground="#48AF6D",
     background="#3FAF6F"
 }
-)
 )
 
 ```
