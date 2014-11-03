@@ -21,6 +21,7 @@ build = {
         qrencode = {
             sources = { "qrencode.c" },
             libraries = { "png", "qrencode" },
+            libdirs = {"/usr/local/lib"}
         }
     },
 }
