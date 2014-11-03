@@ -27,17 +27,11 @@ enum imageType {
 
 #define INCHES_PER_METER (100.0/2.54)
 
-static int casesensitive = 1;
-static int eightbit = 0;
-static int version = 0;
-static int size = 3;
-static int margin = 4;
-static int dpi = 72;
-static QRecLevel level = QR_ECLEVEL_L;
-static QRencodeMode hint = QR_MODE_8;
-static enum imageType image_type = PNG_TYPE;
-static unsigned int fg_color[4] = {0, 0, 0, 255};
-static unsigned int bg_color[4] = {255, 255, 255, 255};
+static int size;
+static int margin;
+static int dpi;
+static unsigned int fg_color[4];
+static unsigned int bg_color[4];
 
 
 /* png io callback function */
@@ -336,12 +330,28 @@ static int encode (lua_State *L)
 	const char *intext;
 	struct memData result;
 
+	int version = 0;
+	int casesensitive = 1;
+	QRencodeMode hint = QR_MODE_8;
+	QRecLevel level = QR_ECLEVEL_L;
+	enum imageType image_type = PNG_TYPE;
+	size = 3;
+	margin = 4;
+	dpi = 72;
+	fg_color[0] = 0;
+	fg_color[1] = 0;
+	fg_color[2] = 0;
+	fg_color[3] = 255;
+	bg_color[0] = 255;
+	bg_color[1] = 255;
+	bg_color[2] = 255;
+	bg_color[3] = 255;
+
 	result.buffer = NULL;
 	result.size = 0;
-	image_type = PNG_TYPE;
 
 	if ((lua_gettop(L) == 1 && lua_istable(L, 1)) ||
-		lua_gettop(L) == 2 && lua_istable(L, 2)) {
+		(lua_gettop(L) == 2 && lua_istable(L, 2)) ) {
 
 		if (lua_gettop(L) == 2)
 			lua_remove(L, 1);
@@ -408,7 +418,6 @@ static int encode (lua_State *L)
 		set_qr_int(L, &margin, "margin");
 		set_qr_int(L, &dpi, "dpi");
 		set_qr_boolean(L,&casesensitive, "casesensitive");
-		set_qr_boolean(L,&eightbit, "eightbit");
 		set_png_color(L, fg_color, "foreground");
 		set_png_color(L, bg_color, "background");
 	}
@@ -460,9 +469,8 @@ static const struct luaL_Reg R [] = {
 
 int luaopen_qrencode (lua_State *L)
 {
-	//luaL_register(L, "qrencode", R);
 	luaL_newlib(L, R);
-    lua_pushvalue(L, -1);
+	lua_pushvalue(L, -1);
 	lua_setmetatable(L, -2);
 	return 1;
 }

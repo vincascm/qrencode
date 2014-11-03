@@ -1,9 +1,15 @@
+2014-11-03 vinoca <vinoca@vinoca.org>
+	* qrencode.c:
+	  * fixed a bug when initialize value.
+	[1.0]
+	  - Bumped verstion to 1.0.2
+
 2014-10-30 vinoca <vinoca@vinoca.org>
 	* qrencode.c:
 	  * add ansi type.
 	[1.0]
 	  * add luarocks rockspec.
-	  - Bumped verstion to 3.4.4.
+	  - Bumped verstion to 1.0.1
 
 2014-10-16 vinoca <vinoca@vinoca.org>
 	* Bumped version to 1.0.0.

@@ -5,19 +5,19 @@ print(qr.encode("is ok?"))
 print(qr:encode("is ok?"))
 print(qr("is ok?"))
 
-print(qr {text = "is ok?", ansi = true})
 print(qr {
-    text="123",
+    text="is ok?",
     level="L",
     kanji=false,
-    ansi=false,
-    size=3,
+    ansi=true,
+    size=4,
+    margin=2,
     symversion=0,
-    dpi=80,
-    casesensitive=true,
-    eightbit=false,
+    dpi=78,
+    casesensitive=false,
     foreground="#48AF6D",
     background="#3FAF6F"
 }
 )
 
+print(qr {text = "is ok?", ansi = false})
