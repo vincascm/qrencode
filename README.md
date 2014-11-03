@@ -34,8 +34,8 @@ print(qr {
     symversion=0,
     dpi=78,
     casesensitive=false,
-    foreground="#48AF6D",
-    background="#3FAF6F"
+    foreground="48AF6D",
+    background="3FAF6F"
 }
 )
 
