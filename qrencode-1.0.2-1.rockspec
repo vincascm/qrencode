@@ -1,5 +1,5 @@
 package = "qrencode"
-version = "0.0.1-1"
+version = "1.0.2-1"
 source = {
     url = "qr.tar.gz",
     file = "qr.tar.gz"
