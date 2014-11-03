@@ -275,17 +275,13 @@ static void set_png_color(lua_State *L, unsigned int color[4], const char * fiel
 	lua_gettable(L, 1);
 	if (!lua_isnil(L, 2)) {
 		value = lua_tolstring(L, 2, &len);
-		if(value[0] != '#') {
-			set_error_info(L, field);
-		}
-		value += 1;
-	    if(len == 7) {
+	    if(len == 6) {
 			count = sscanf(value, "%02x%02x%02x%n", &color[0], &color[1], &color[2], (int *)&len);
 			if(count < 3 || len != 6) {
 				set_error_info(L, field);
 			}
 			color[3] = 255;
-		} else if(len == 9) {
+		} else if(len == 8) {
 			count = sscanf(value, "%02x%02x%02x%02x%n", &color[0], &color[1], &color[2], &color[3], (int *)&len);
 			if(count < 4 || len != 8) {
 				set_error_info(L, field);
