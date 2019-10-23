@@ -10,6 +10,8 @@ before compile it.
 
 ## Example usage
 
+### simple usage
+
 ```lua
 qr = require "qrencode"
 
@@ -18,9 +20,7 @@ qr = require "qrencode"
 print(qr.encode("is ok?"))
 print(qr:encode("is ok?"))
 print(qr("is ok?"))
-
--- print ansi char
-print(qr {text = "is ok?", ansi = true})
+print(qr {text = "is ok?", level = "M"})
 
 -- or pass a table :
 
@@ -28,7 +28,6 @@ print(qr {
     text="is ok?",
     level="L",
     kanji=false,
-    ansi=true,
     size=4,
     margin=2,
     symversion=0,
@@ -42,13 +41,34 @@ print(qr {
 
 ```
 
+### in nginx lua
+
+```lua
+local qr = require "qrencode"
+local args = ngx.req.get_uri_args()
+
+ngx.header.content_type = 'image/png'
+ngx.say(
+  qr {
+    text = args.text
+    size = args.size or 8,
+    margin = args.margin or 0,
+    symversion = 2,
+    level = 'M',
+    foreground = args.fg,
+    background = args.bg
+  }
+)
+
+```
+
 when pass a table, "text" is required and other is optional.
 
 ## Author
 
-vinoca <http://www.vinoca.org/>
+vinoca <https://www.vinoca.org/>
 
 ## Copyright and license
 
-Code and documentation copyright 2014-2015 vinoca. Code released under the MIT license.
+Code and documentation copyright 2014-2019 vinoca. Code released under the MIT license.
 Docs released under Creative commons.

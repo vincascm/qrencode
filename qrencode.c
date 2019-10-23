@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <string.h>
 
 #include <lua.h>
 #include <lauxlib.h>
@@ -18,11 +19,6 @@
 struct memData {
 	char *buffer;
 	size_t size;
-};
-
-enum imageType {
-    PNG_TYPE,
-    ANSI_TYPE
 };
 
 #define INCHES_PER_METER (100.0/2.54)
@@ -48,7 +44,7 @@ static void cp_png_data(png_structp png_ptr, png_bytep data, png_size_t length)
 }
 
 /* 0:failure/1:true to_png( qrcode: qr data , result: buffer to save result.) {{{ */
-static int to_png(QRcode *qrcode, struct memData *result)
+static int to_png(const QRcode *qrcode, struct memData *result)
 {
 	png_structp png_ptr;
 	png_infop info_ptr;
@@ -160,104 +156,6 @@ static int to_png(QRcode *qrcode, struct memData *result)
 }
 /* }}} */
 
-/* buffer is in, and result is out */
-static void mputs(char *buffer, struct memData *result)
-{
-	size_t length = strlen(buffer);
-	result->buffer = realloc(result->buffer, result->size + length);
-	if (!result->buffer) {
-		fprintf(stderr, "Write Error.\n");
-		exit(EXIT_FAILURE);
-	}
-	memcpy(result->buffer + result->size, buffer, length);
-	result->size += length;
-}
-
-/* to_ansi {{{ */
-static int to_ansi(QRcode *qrcode, struct memData *result)
-{
-	unsigned char *row, *p;
-	int x, y;
-	int realwidth;
-	int last;
-
-	char *white, *black, *buffer;
-	int white_s, black_s, buffer_s;
-
-	white = "\033[47m";
-	white_s = 5;
-	black = "\033[40m";
-	black_s = 5;
-
-	size = 1;
-
-	realwidth = (qrcode->width + margin * 2) * size;
-	buffer_s = ( realwidth * white_s ) * 2;
-	buffer = (char *)malloc( buffer_s );
-	if(buffer == NULL) {
-		fprintf(stderr, "Failed to allocate memory.\n");
-		exit(EXIT_FAILURE);
-	}
-
-	/* top margin */
-	strncpy(buffer, white, white_s);
-	memset(buffer + white_s, ' ', realwidth * 2);
-	strcpy(buffer + white_s + realwidth * 2, "\033[0m\n"); // reset to default colors
-	for(y=0; y<margin; y++ ){
-		mputs(buffer, result);
-	}
-
-	/* data */
-	p = qrcode->data;
-	for(y=0; y<qrcode->width; y++) {
-		row = (p+(y*qrcode->width));
-
-		bzero( buffer, buffer_s );
-		strncpy( buffer, white, white_s );
-		for(x=0; x<margin; x++ ){
-			strncat( buffer, "  ", 2 );
-		}
-		last = 0;
-
-		for(x=0; x<qrcode->width; x++) {
-			if(*(row+x)&0x1) {
-				if( last != 1 ){
-					strncat( buffer, black, black_s );
-					last = 1;
-				}
-			} else {
-				if( last != 0 ){
-					strncat( buffer, white, white_s );
-					last = 0;
-				}
-			}
-			strncat( buffer, "  ", 2 );
-		}
-
-		if( last != 0 ){
-			strncat( buffer, white, white_s );
-		}
-		for(x=0; x<margin; x++ ){
-			strncat( buffer, "  ", 2 );
-		}
-		strncat( buffer, "\033[0m\n", 5 );
-		mputs( buffer, result );
-	}
-
-	/* bottom margin */
-	strncpy(buffer, white, white_s);
-	memset(buffer + white_s, ' ', realwidth * 2);
-	strcpy(buffer + white_s + realwidth * 2, "\033[0m\n"); // reset to default colors
-	for(y=0; y<margin; y++ ){
-		mputs(buffer, result);
-	}
-
-	free(buffer);
-
-	return 0;
-}
-/* }}} */
-
 static void set_error_info(lua_State *L, const char *info)
 {
 	lua_pushstring(L, info);
@@ -315,7 +213,7 @@ static void set_qr_int (lua_State *L, int *set_to, const char * field)
 	lua_pushstring(L, field);
 	lua_gettable(L, 1);
 	if (!lua_isnil(L, 2)) {
-		*set_to = luaL_checkint(L, 2);
+		*set_to = luaL_checkinteger(L, 2);
 	}	
 	lua_pop(L, 1);
 }
@@ -323,14 +221,13 @@ static void set_qr_int (lua_State *L, int *set_to, const char * field)
 static int encode (lua_State *L)
 {
 	QRcode *qrcode;
-	const char *intext;
 	struct memData result;
 
+	const char *intext = "";
 	int version = 0;
 	int casesensitive = 1;
 	QRencodeMode hint = QR_MODE_8;
 	QRecLevel level = QR_ECLEVEL_L;
-	enum imageType image_type = PNG_TYPE;
 	size = 3;
 	margin = 4;
 	dpi = 72;
@@ -397,18 +294,6 @@ static int encode (lua_State *L)
 		}
 		lua_pop(L, 1);
 
-		lua_pushstring(L, "ansi");
-		lua_gettable(L, 1);
-		if (!lua_isnil(L, 2)) {
-			if (!lua_isboolean(L, 2)) {
-				lua_pushstring(L, "ansi is not \"true\" or \"false\"");
-				lua_error(L);
-			}
-			if(lua_toboolean(L, 2))
-				image_type = ANSI_TYPE;
-		}
-		lua_pop(L, 1);
-
 		set_qr_int(L, &size, "size");
 		set_qr_int(L, &version, "symversion");
 		set_qr_int(L, &margin, "margin");
@@ -438,17 +323,10 @@ static int encode (lua_State *L)
 		return 2;
 	}
 
-	if ( image_type == PNG_TYPE) {
-		if (!to_png(qrcode, &result)) {
-			lua_pushnil(L);
-			lua_pushstring(L, "Failed to encode the input data to png");
-			return 2;
-		}
-	} else if ( image_type == ANSI_TYPE) {
-		to_ansi(qrcode, &result);
-	} else {
-		lua_pushstring(L, "image type is invalid.");
-		lua_error(L);
+	if (!to_png(qrcode, &result)) {
+		lua_pushnil(L);
+		lua_pushstring(L, "Failed to encode the input data to png");
+		return 2;
 	}
 
 	QRcode_free(qrcode);
