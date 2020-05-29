@@ -12,6 +12,7 @@ before compile it.
 
 ```shell
 yum install -y qrencode-devel libpng-devel
+make
 ```
 
 ## Example usage
@@ -65,14 +66,13 @@ ngx.say(
     background = args.bg
   }
 )
-
 ```
 
-or 
+or nginx config file
 
-```
+```nginx
 server {
-	server_name qr.corp.com;
+    server_name qr.corp.com;
 
     location /qr {
         content_by_lua_block {
@@ -94,7 +94,7 @@ server {
 }
 ```
 
-and visit `http://qr.corp.com/qr?text=works` to test.
+and visit `http://qr.corp.com/qr?text=works` to test it.
 
 when pass a table, "text" is required and other is optional.
 
