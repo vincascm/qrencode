@@ -8,7 +8,7 @@ qrencode is dependent on [libqrencode](http://fukuchi.org/works/qrencode/)
 and [libpng](http://www.libpng.org/pub/png/libpng.html), so make sure these are installed
 before compile it.
 
-### Centos
+### CentOS
 
 ```shell
 yum install -y qrencode-devel libpng-devel
@@ -83,7 +83,7 @@ server {
             ngx.say( qr {
                 text = args.text,
                 size = args.size or 8,
-                margin = args.margin or 0,
+                margin = args.margin or 1,
                 symversion = 2,
                 level = 'M',
                 foreground = args.fg,
