@@ -8,6 +8,12 @@ qrencode is dependent on [libqrencode](http://fukuchi.org/works/qrencode/)
 and [libpng](http://www.libpng.org/pub/png/libpng.html), so make sure these are installed
 before compile it.
 
+### Centos
+
+```shell
+yum install -y qrencode-devel libpng-devel
+```
+
 ## Example usage
 
 ### simple usage
@@ -41,7 +47,7 @@ print(qr {
 
 ```
 
-### in nginx lua
+### in [nginx lua](https://github.com/openresty/lua-nginx-module)
 
 ```lua
 local qr = require "qrencode"
@@ -50,9 +56,9 @@ local args = ngx.req.get_uri_args()
 ngx.header.content_type = 'image/png'
 ngx.say(
   qr {
-    text = args.text
+    text = args.text,
     size = args.size or 8,
-    margin = args.margin or 0,
+    margin = args.margin or 1,
     symversion = 2,
     level = 'M',
     foreground = args.fg,
@@ -62,6 +68,34 @@ ngx.say(
 
 ```
 
+or 
+
+```
+server {
+	server_name qr.corp.com;
+
+    location /qr {
+        content_by_lua_block {
+            local qr = require "qrencode"
+            local args = ngx.req.get_uri_args()
+
+            ngx.header.content_type = 'image/png'
+            ngx.say( qr {
+                text = args.text,
+                size = args.size or 8,
+                margin = args.margin or 0,
+                symversion = 2,
+                level = 'M',
+                foreground = args.fg,
+                background = args.bg
+            })
+        }
+    }   
+}
+```
+
+and visit `http://qr.corp.com/qr?text=works` to test.
+
 when pass a table, "text" is required and other is optional.
 
 ## Author
@@ -70,5 +104,5 @@ vinoca <https://www.vinoca.org/>
 
 ## Copyright and license
 
-Code and documentation copyright 2014-2019 vinoca. Code released under the MIT license.
+Code and documentation copyright 2014-2020 vinoca. Code released under the MIT license.
 Docs released under Creative commons.
